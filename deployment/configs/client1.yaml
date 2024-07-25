@@ -1,0 +1,32 @@
+train_configs:
+  # Device
+  device: "cpu"
+  # Training
+  optim: Adam
+  optim_args:
+    lr: 0.01
+  # Logging and outputs
+  logging_id: "Client1"
+  logging_output_dirname: "./output"
+  logging_output_filename: "result"
+
+model_configs:
+  model_path: "./embedding_model.py"
+  model_name: "DiabetesClientEmbeddingModel"
+  model_kwargs:
+    input_dim: 3
+    output_dim: 8
+    hidden_dim: 24
+
+# Local dataset
+data_configs:
+  dataset_path: "./client_data.py"
+  dataset_name: "get_vfl_data"
+  dataset_kwargs:
+    client_id: 0
+
+comm_configs:
+  grpc_configs:
+    server_uri: localhost:50051
+    max_message_size: 1048576
+    use_ssl: False

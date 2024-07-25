@@ -1,8 +1,9 @@
 import torch
+import pathlib
 import importlib
 from matplotlib import pyplot as plt
 from omegaconf import DictConfig
-from typing import Any, Union, List, Dict
+from typing import Any, Union, List, Dict, Optional
 from appfl.aggregator import BaseAggregator
 from appfl.misc import create_instance_from_file, run_function_from_file
 
@@ -70,26 +71,39 @@ class VFLAggregator(BaseAggregator):
         train_loss.backward()
         self.optimizer.step()
         self.train_losses.append(train_loss.item())
-        with torch.no_grad():
-            self.model.eval()
-            y_val_pred = self.model(val_embedding)
-            val_loss = self.loss_fn(y_val_pred, self.val_labels)
-            self.val_losses.append(val_loss.item())
+        if self.validation:
+            with torch.no_grad():
+                self.model.eval()
+                y_val_pred = self.model(val_embedding)
+                val_loss = self.loss_fn(y_val_pred, self.val_labels)
+                self.val_losses.append(val_loss.item())
             
         self.round += 1
         validation_interval = self.aggregator_configs.get("validation_interval", 50)
         if (self.round % validation_interval) == 0:
             if self.logger:
-                self.logger.info(f"Round {self.round}: Training Loss: {train_loss.item()}, Validation Loss: {val_loss.item()}")
+                if self.validation:
+                    self.logger.info(f"Round {self.round}: Training Loss: {train_loss.item()}, Validation Loss: {val_loss.item()}")
+                else:
+                    self.logger.info(f"Round {self.round}: Training Loss: {train_loss.item()}")
             else:
-                print(f"Round {self.round}: Training Loss: {train_loss.item()}, Validation Loss: {val_loss.item()}")
+                if self.validation:
+                    print(f"Round {self.round}: Training Loss: {train_loss.item()}, Validation Loss: {val_loss.item()}")
+                else:
+                    print(f"Round {self.round}: Training Loss: {train_loss.item()}")
+        
+        if hasattr(self.aggregator_configs, "plot_epoch") and self.round == self.aggregator_configs.plot_epoch:
+            plot_file_path = getattr(self.aggregator_configs, "plot_file_path", 'loss.pdf')
+            plot_file_dir = pathlib.Path(plot_file_path).parent
+            plot_file_dir.mkdir(parents=True, exist_ok=True)
+            self.plot_loss(plot_file_path)
         
         grads = train_embedding.grad.split(embedding_lengths, dim=1)
         
         if isinstance(local_embeddings, dict):
             ret = {}
-            for client_id in client_id_order:
-                ret[client_id] = {'client_grad': grads.pop(0)}
+            for i, client_id in enumerate(client_id_order):
+                ret[client_id] = {'client_grad': grads[i]}
         else:
             ret = [{'client_grad': grad} for grad in grads]
         return ret
@@ -97,15 +111,24 @@ class VFLAggregator(BaseAggregator):
     def get_parameters(self, **kwargs):
         raise NotImplementedError("get_parameters method should not be called for VFLAggregator")
     
-    def plot_loss(self):
+    def plot_loss(self, save_path: Optional[str] = None):
+        if save_path:
+            import matplotlib
+            matplotlib.use('Agg')
         plt.figure(figsize=(10, 5))
         plt.plot(self.train_losses, label='Training MSE')
-        plt.plot(self.val_losses, label='Validation MSE')
+        if self.validation:
+            plt.plot(self.val_losses, label='Validation MSE')
+            plt.title('Vertical Federated Learing: Training and Validation MSE')
+        else:
+            plt.title('Vertical Federated Learing: Training MSE')
         plt.xlabel('Epochs')
-        plt.ylabel('Mean Squared Error')
+        plt.ylabel('Mean Squared Error (MSE)')
         plt.legend()
-        plt.title('Training and Validation MSE')
-        plt.show()
+        if save_path:
+            plt.savefig(save_path)
+        else:
+            plt.show()
     
     def _load_loss(self):
         if hasattr(self.aggregator_configs, "loss_fn_path") and hasattr(self.aggregator_configs, "loss_fn_name"):

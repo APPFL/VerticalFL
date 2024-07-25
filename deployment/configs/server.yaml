@@ -1,0 +1,39 @@
+client_configs:
+  train_configs:
+    trainer: "VFLTrainer"
+  comm_configs:
+    compressor_configs:
+      enable_compression: False
+
+server_configs:
+  scheduler: "SyncScheduler"
+  scheduler_kwargs:
+    num_clients: 3
+  aggregator: "VFLAggregator"
+  aggregator_kwargs:
+    device: cpu
+    optim: Adam
+    optim_args:
+      lr: 0.01
+    loss_fn: MSELoss
+    server_label_path: "./server_labels.py"
+    server_label_fn: get_labels
+    validation: True
+    validation_interval: 50
+    plot_epoch: 500
+    plot_file_path: "./output/loss.pdf"
+  num_global_epochs: 500
+  logging_output_dirname: "./output"
+  logging_output_filename: "result"
+  model_configs:
+    model_path: "./server_model.py"
+    model_name: "DiabetesServerModel"
+    model_kwargs:
+      input_dim: 24
+      output_dim: 1
+      hidden_dim: 12
+  comm_configs:
+    grpc_configs:
+      server_uri: localhost:50051
+      max_message_size: 1048576
+      use_ssl: False
