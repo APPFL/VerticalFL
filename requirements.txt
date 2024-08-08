@@ -1,0 +1,6 @@
+torch==2.3.1
+matplotlib==3.9.0
+scikit-learn==1.5.1
+omegaconf==2.3.0
+appfl[examples] @ git+https://github.com/APPFL/APPFL.git@e9d79404b7dc391c2fe4d3900c2e1815147c4736#egg=appfl
+jupyter
